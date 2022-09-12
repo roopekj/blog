@@ -1,0 +1,10 @@
+title: blog
+author: roopekj
+description: >-
+domain: "roopekj.github.io"
+baseurl: "/blog"
+url: "https://roopekj.github.io"
+
+# Build settings
+theme: minima
+plugins:
