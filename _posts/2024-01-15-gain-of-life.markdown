@@ -9,7 +9,9 @@ I've had a strong opinion on how people should concentrate their effort for a lo
 
 Some time ago I was talking with an acquintance about this and couldn't quite communicate my point to them in a way they could relate to. They held the opinion of "We should all just follow our heart". I decided to make a concise explainer that I could refer to in the future. It's taken a while, but I had a day off on Sunday and decided to check out Svelte/SvelteKit along the way. It turned into a sort of interactive blog post. I'm not putting it here because it would be a pain to get Jekyll and a static build of a Svelte website to work together on Github pages, if it's even possible. Instead, the link can be found below.
 
-https://roopekj.github.io/gain-of-life
+You can navigate the game with the up and down arrow keys.
+
+[https://roopekj.github.io/gain-of-life](https://roopekj.github.io/gain-of-life)
 
 # Sources
 
