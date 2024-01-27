@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Gain of life"
+title: "If you work hard enough, you can be mediocre at anything"
 date: 2024-01-15 00:00:00
 categories:
 ---
@@ -16,7 +16,3 @@ You can navigate the game with the up and down arrow keys.
 # Sources
 
 [1] https://en.wikipedia.org/wiki/Tang_ping
-
-# Notes
-
-The name is supposed to be a reference to John Conway's Game of Life. I know it doesn't work at all, it's just the first thing that came to my mind when I was creating the repository for the project. If you have a suggestion for another name let me know.
