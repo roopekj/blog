@@ -19,11 +19,11 @@ The compiler nicely points out that the way you change this behavior is by defin
 ![](/blog/assets/immutability_2.png){:width="500px"}
 
 This is an important part of Rust's type system and increases predictability, readability and error resiliency.
-This is not the case in dynamically typed languages such as javascript, where the following code is perfectly valid:
+This is not the case in dynamically typed and "mutable by default" languages such as javascript, where the following code is perfectly valid:
 
 ![](/blog/assets/immutability_3.png){:width="500px"}
 
-In such dynamically typed languages, you usually need to go out of your way to define an immutable variable.
+In such languages, you usually need to go out of your way to define an immutable variable.
 However, once you do, the behavior is as expected. Trying to modify a "constant" variable's value causes an error:
 
 ![](/blog/assets/immutability_4.png){:width="725px"}
