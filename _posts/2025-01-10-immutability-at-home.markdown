@@ -53,7 +53,7 @@ How does this differ from the previous example where the compiler immediately er
 Technically, we are not modifying the value of the variable. When we define `let x: u8 = 2` at the start, eight bits from the stack are allocated for this integer.
 Later on, when we do `let x: u8 = x * 2`, the righthand side is evaluated first. Obviously, we read the value of 2 from those previous eight bits and then multiply it by 2, ending up with 4.
 The important distinction here is that this value of 4 is not written to the same 8 bits as the previous value. Instead, 8 new bits are allocated for this new value, and then
-the variable is *rebound* to that memory location. We are not overwriting, we're *shadowing*. If you wrote `x = x * 2` instead, you would be attempting and overwrite, causing an error.
+the variable is *rebound* to that memory location. We are not overwriting, we're *shadowing*. If you wrote `x = x * 2` instead, you would be attempting an overwrite, causing an error.
 
 We can see this in action if we check what memory addresses the intermediate values are mapped to:
 ![](/blog/assets/immutability_10.png){:width="500px"}
