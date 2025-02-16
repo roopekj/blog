@@ -11,7 +11,7 @@ fast different languages are at calculating the Levenshtein distance. Otherwise 
 not trivial to calculate. Let's see what they have to say:
 ![](/blog/assets/levenshtein.gif){:width="750px", loop=""}
 
-The fastest languages are on the top and the slowest on the bottom. In case the bouncing circles aren't enough of an indicator, there's also some numbers in
+I can't get enough of this quote: "Fortran out here impressing". In these visualizations, the fastest languages are on the top and the slowest on the bottom. In case the bouncing circles aren't enough of an indicator, there's also some numbers in
 milliseconds on the left. All very scientific. And on the surface, sure, Fortran "do be out here impressing". After all, it's the fastest language in the visualization. This is until you
 realize that their Fortran implementation was actually truncating the strings to 100 characters, making the problem drastically less difficult and the results completely different. This bug was copied and pasted into many such visualizations because no one's actually read the code.
 But don't worry, it was fixed in another repository (not the one from the above video) in a silent 1 file commit with the gracious message of `Update code.f90`:
@@ -25,15 +25,15 @@ For some reason these visualization are a popular thing to make, debate and shar
 
 After fixing the string truncation problem you get another result where Fortran is slower, as you'd expect. Right now after all these fixes and clarifications, one website [1] centered around showing these things has arrived at a visualization where C++ is almost 20% slower than C and Fortran is still on top.
 ![](/blog/assets/legacy_benchmark.gif){:width="750px", loop=""}
-Why? Who knows. What does this have to do with anything that you'd actually run in production? Ah, but this is the "legacy run" version where *start times are included*. What does this mean, how much does it change things? On what hardware? Which operating system? Stop asking question. There's another version where they claim that the tests were run on an Apple M4 Max.
+Why? Who knows. What does this have to do with anything that you'd actually run in production? Ah, but this is the "legacy run" version where *start times are included*. What does this mean, how much does it change things? On what hardware? Which operating system? Stop asking questions. There's another version where they claim that the tests were run on an Apple M4 Max.
 ![](/blog/assets/m4_benchmark.gif){:width="750px", loop=""}
 Great. Again, which OS? Which compiler? In this benchmark **Rust is about 40% slower than C**. What? How? Rust, C, C++ and Zig (along with others on this list) can all be compiled into LLVM IR. This LLVM IR is decoupled from the high-level language that was written by humans and can be compiled deterministically into machine code.
 This means that for such a simple program, as long as the compiler that produces LLVM IR from the source code (C or Rust or whatever) does not do anything erroneously silly, the LLVM IR should be **essentially identical**. Consequently, the compiled binary would be exactly the same. Everything down to the individual instructions running on your CPU
-would be the same, yet we are seeing a difference of tens of percents in runtime? No, I would be very skeptical about theoretical runtime safety checks causing a 40% performance gap, and this would still only address Rust.
-Furthermore, I'm sure you could write an implementation that is nearly if not completely the same in C and C++. In this case even the source code would match, leaving little room for even the LLVM IR compiler to mess up. In fact, here's one:  
+would be the same, yet we are seeing a difference of tens of percents in runtime? For the person who's thinking this right now: Yes, I would be very skeptical about theoretical runtime safety checks causing a 40% performance gap, and this would still only address Rust.
+Furthermore, I'm sure you could write an implementation that is nearly if not completely the same in C and C++. In this case even the source code would match, leaving little room for even the LLVM IR compiler to mess up. In fact, here's one example of such source code:  
 ![](/blog/assets/bothlangs.png){:width="500px"}
 
-Running the binary compiled with either the C or the C++ compiler produces the same result:
+Running the binary compiled either as C or C++ produces the same result:
 ![](/blog/assets/bothlangs_perf.png){:width="500px"}
 
 But I suppose this LLVM route or using literally the same source code would lead to uninteresting visualizations where the circles bounce in sync and this would not get that many likes on LinkedIn. Therefore, they compile directly to machine code with different compilers and different source code. Fair enough.
@@ -111,7 +111,7 @@ I'll spare you from the optimized assembly as it's a lot more complex, but it se
 Inspired by this, let's change the C code just a tiny bit:  
 ![](/blog/assets/c_tailrecursion.png){:width="350px"}
 
-We've split the fibonacci function into two different functions. In combination, these functions do the exact same thing. However, individually they both return the result of just one function call unlike previously, where the function returned the sum of two function calls. We are still being naive and doing recursive functions. You could argue that we're being more naive, we've added even more functions! Here are the benchmarks:  
+We've split the fibonacci function into two different functions. In combination, these functions do the exact same thing. However, individually they both return the result of just one function call unlike previously, where the function returned the sum of two function calls. We are still being naive and doing recursive functions. You could argue that we're being even more naive, we've added even more functions! Here are the benchmarks:  
 ![](/blog/assets/c_tailrecursion_times.png){:width="500px"}
 
 The program is instantaneous even without any optimizations. C out here impressing, I suppose. Better yet, this is also valid C++ and it runs just as fast when compiled with g++. So C++ also gets to be out here impressing. Is this starting to feel stupid? Hope so, because that's exactly what this is. 
@@ -135,5 +135,5 @@ Credit:
 [3] https://www.linkedin.com/posts/benjamin-dicken-78797a73_check-out-the-results-for-levenshtein-distance-activity-7275179003055951872-rGRl  
 [4] https://www.youtube.com/watch?v=EH12jHkQFQk  
 [5] https://www.intel.com/content/www/us/en/docs/fortran-compiler/developer-guide-reference/2023-1/recursive-and-non-recursive.html  
-[6] https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html
-[7] https://godbolt.org/
+[6] https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html  
+[7] https://godbolt.org/  
