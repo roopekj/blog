@@ -5,13 +5,13 @@ date:   2025-02-16 00:00:00
 categories:
 ---
 
-There's this visualization of programming language performance benchmarks that I've been seeing more recently. Usually it's posted on some social media along with a caption
-that either touts the ones on the top or vilifies the ones on the bottom. Here's an example of a linkedin post [3] where the visualization is supposedly comparing how 
+There's this visualization of programming language performance benchmarks that I've been seeing more recently. Usually it's posted on some social media platform along with a caption
+that either touts the fastest language or vilifies slowest one. Here's an example of a linkedin post [3] where the visualization is supposedly comparing how 
 fast different languages are at calculating the Levenshtein distance. Otherwise known as the edit distance, this can be used as a measure of how similar two strings are and is 
 not trivial to calculate. Let's see what they have to say:
 ![](/blog/assets/levenshtein.gif){:width="750px", loop=""}
 
-I can't get enough of this quote: "Fortran out here impressing". In these visualizations, the fastest languages are on the top and the slowest on the bottom. In case the bouncing circles aren't enough of an indicator, there's also some numbers in
+I can't get enough of this quote from the post: "Fortran out here impressing". In these visualizations, the fastest languages are on the top and the slowest on the bottom. In case the bouncing circles aren't enough of an indicator, there's also some numbers in
 milliseconds on the left. All very scientific. And on the surface, sure, Fortran "do be out here impressing". After all, it's the fastest language in the visualization. This is until you
 realize that their Fortran implementation was actually truncating the strings to 100 characters, making the problem drastically less difficult and the results completely different. This bug was copied and pasted into many such visualizations because no one's actually read the code.
 But don't worry, it was fixed in another repository (not the one from the above video) in a silent 1 file commit with the gracious message of `Update code.f90`:
@@ -44,7 +44,7 @@ something about your very specific setup and how performance **could** look like
 You simply cannot deduce *Fortran out here impressing* based on one circle moving three pixels further than another circle every millisecond in an animation. None of this is even remotely sensible. And yet, the title of the site asks the most hilariously naive question you could think of: "How fast is your favorite language?"
 
 
-# No brakes on the stupidity train
+# All gas no brakes
 I was aware of the Levenshtein disaster prior to looking into this. Horrid, but whatever. Maybe someone made it, had this explained to them and learned their lesson. Wrong! These people have been busy and are more enthusiastic than ever. Look at this:
 ![](/blog/assets/fibonacci.gif){:width="750px", loop=""}
 
@@ -114,7 +114,7 @@ Inspired by this, let's change the C code just a tiny bit:
 We've split the fibonacci function into two different functions. In combination, these functions do the exact same thing. However, individually they both return the result of just one function call unlike previously, where the function returned the sum of two function calls. We are still being naive and doing recursive functions. You could argue that we're being even more naive, we've added even more functions! Here are the benchmarks:  
 ![](/blog/assets/c_tailrecursion_times.png){:width="500px"}
 
-The program is instantaneous even without any optimizations. C out here impressing, I suppose. Better yet, this is also valid C++ and it runs just as fast when compiled with g++. So C++ also gets to be out here impressing. Is this starting to feel stupid? Hope so, because that's exactly what this is. 
+The program is instantaneous even without any optimizations. C out here impressing, I suppose. Better yet, this is also valid C++ and it runs just as fast when compiled with g++. So C++ also gets to be out here impressing. Is this starting to feel mindless? Hope so, because that's exactly what this is. 
 
 Perhaps I'm being needlessly critical. As mentioned, there is also a set of "non-legacy" benchmarks, whatever that means. At the very least there we know what hardware those tests were run on. Seeing that Fortran is in fact
 the greatest language for high-performance computing and these results are extremely scientific and replicable, we're going to see it shine in this one as well.

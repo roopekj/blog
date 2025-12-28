@@ -125,7 +125,7 @@ RT cores have no relevance in this discussion, but GEMMs in single-precision (32
 CUDA cores perform basic arithmetic, mainly additions, multiplications and their combination called a Fused Multiply-Add (FMA), on scalar data.
 On the other hand, in modern GPUs, *mixed precision* GEMMs are best handled by tensor cores.
 Here, *mixed precision* could mean 16-bit FP since Volta, 8-bit FP since Ada or 4-bit FP since the Blackwell architecture that is rolling out at the time of writing.
-Tensor cores are specifically built for performing Matrix Multiply-Accumulate (MMA) operations, and therefore work on entire blocks of scalar data at once.
+Tensor cores are specifically built for performing matrix-matrix multiplications and additions in mixed precision, and therefore work on entire blocks of scalar data at once.
 
 CUDA cores are used for graphics processing and scientific computing, as the full 32-bit precision or even 64-bit precision is often required in these domains.
 Operations that cannot be formulated in terms of the previously mentioned block matrices are also executed by CUDA cores.
@@ -333,7 +333,7 @@ This is even if you keep the other other two variables constant.
 A doubling of this kind has happened both in the transition from Volta to Ampere and from Ampere to Hopper, with the Ampere architecture doing it in two dimensions simultaneously, resulting in four times the throughput.
 
 It's important to note that the tensor core processing array size is not something that anyone outside NVIDIA really needs to know, as the CUDA runtime does the mapping from instructions to hardware capabilities.
-The resulting throughput of these cores is measured in FLoating point Operations Per Second (TFLOPS), a common measure for how quickly these cards can do basic math operations.
+The resulting throughput of these cores is measured in FLoating point Operations Per Second (FLOPS), a common measure for how quickly these cards can do basic math operations.
 It's unit is the FLOP, meaning one of these floating point operations, and how many FLOPs a card can do is equivalent to its FLOPS [1].
 You really just need to know this number to know how cards stack up against each other, as long as you have an optimized workload.
 NVIDIA also makes finding these details quite tricky.

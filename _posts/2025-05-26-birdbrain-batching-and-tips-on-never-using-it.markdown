@@ -157,7 +157,7 @@ What does this stark decrease in the number of individual operations actually do
 
 # A quick peek under the hood *(parallelized matrix-matrix multiplication)*
 
-I wrote a [post](./mulling-over-matrix-multiplications-in-CUDA) about matrix multiplications within CUDA.
+I wrote a [post](./mulling-over-matrix-multiplications-in-cuda) about matrix multiplications within CUDA.
 I would recommend reading it, as it is quite relevant, but wouldn't necessarily consider it to be a prerequisite as it is also needlessly in-depth. 
 
 The bare minimum to understand for the purposes of this post is this: modern GPUs are able to calculate large matrix-matrix products extremely efficiently, achieving exceptional levels of parallelism.
@@ -170,7 +170,7 @@ This is the magic of parallelized matrix multiplications.
 ## The clever, the industrious and the birdbrained
 This is where we arrive at the real subject of this post.
 
-When the feature vectors are statically sized feature vectors (details of car listings, sensor readings, color intensities of pixels with three color channels and so on), parallelism is straightforward and obvious.
+When the feature vectors are statically sized (details of car listings, sensor readings, color intensities of pixels), parallelism is straightforward and obvious.
 However, things get interesting when the feature vector sizes differ.
 One pertinent scenario where this typically occurs is in natural language.
 *From this point onwards, we're going to focus on movie reviews as an example, but the ideas apply generally to all language models and document types.*
