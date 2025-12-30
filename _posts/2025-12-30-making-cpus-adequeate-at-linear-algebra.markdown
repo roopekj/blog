@@ -767,15 +767,16 @@ As expected, using the implementation using AVX-512 intrics leads to an uptick i
 * Naive: 1.21 seconds
 * AVX-512: 0.21 seconds
 
-This time, we get a speedup of around 5x.
+This time, we get a speedup of around 6x.
 
 # Wrapping up
-As noted earlier, it's worthwile to check if some BLAS library would have what you need before starting to write it yourself.
+As noted earlier, it's worthwile to check if some BLAS library would have what you need before starting to write intrinsics yourself.
 These libraries often use some combination of intrinsics and hand-written assembly to extract optimum performance for common operations, such as matrix multiplications.
+If your implementation is going to compete with theirs, it won't be you coming out on top.
 
 Of course, I'm not claiming that the implementations shown here are 100% optimal.
 They're clearly not, we're not even aligning our memory before loads and stores.
-However, the remaining optimizations wouldn't change the conclusions that we can already draw from the results above.
+However, the remaining optimizations wouldn't change the conclusions that we can already draw from these results.
 Furthermore, the point of this post has been to showcase the general process of optimizing code using AVX-512 intrinsics and the types of speedups that one could expect from doing so.
 As is evident, optimization using intrinsics can be an extremely powerful tool in your toolbox.
 
