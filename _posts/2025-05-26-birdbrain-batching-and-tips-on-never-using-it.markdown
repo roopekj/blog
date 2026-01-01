@@ -204,19 +204,20 @@ Let's say that it is 90 words long.
 Well, through an identical starting process it turns into a $\mathbb{R}^{90 \times 4096}$ matrix.
 Now we have a $\mathbb{R}^{100 \times 4096}$ and a $\mathbb{R}^{90 \times 4096}$ matrix on our hands.
 When we pass these two reviews through the first linear layer of the first self-attention layer, what will we be using as the input?
-We're trying to pass them through at the same time but independently of one another.
-As is emphasized in my [post on CUDA programming](./mulling-over-matrix-multiplications-in-CUDA), the speed of our calculations originates from collections of threads performing the same instructions in parallel on different data.
+Remember, we're trying to pass the two reviews through at the same time but independently of one another.
+
 If we simply turn this into a $\mathbb{R}^{190 \times 4096}$ matrix, we would still need to communicate somehow where one review ends and the second one starts.
 What about when we need to apply attention?
 The tokens of the first review can't be allowed to "attend to" the tokens of the second one and vice versa.
-All of these types of conciderations have led to a pseudo-standardization, where data like this should be expressed as a tensor of type $\mathbb{R}^{\text{batch size} \times \text{number of tokens} \times \text{hidden dimension}}$.
+All such conciderations have led to a pseudo-standardization, where data like this should be expressed as a tensor of type $\mathbb{R}^{\text{batch size} \times \text{number of tokens} \times \text{hidden dimension}}$.
+This way, it's possible to create reasonable GPU kernels that can then be reused generally throughout differently sized operands.
 You can see this in how the library we're using for matrix multiplications, PyTorch, [interprets the sizes of our operands](https://docs.pytorch.org/docs/stable/generated/torch.matmul.html):
 
 `If both arguments are at least 1-dimensional and at least one argument is N-dimensional (where N > 2), then a batched matrix multiply is returned.`
 
 So we activate batched matrix multiplication by adding a third dimension.
-This way, it's possible to create reasonable GPU kernels that can then be reused generally throughout differently sized operands.
-We need to create a 3D tensor, but the dimensions of our 2D matrices do not match, so we cannot concatenate them directly.
+As such, we need to create a 3D tensor from our two reviews.
+Unfortunately, the dimensions of our 2D matrices do not match, so we cannot concatenate them directly.
 What to do?
 
 This is where padding comes in. We define a special token which acts as a *padding token*, and add 10 of those at the end of our shorter review.
@@ -398,10 +399,11 @@ This can also be motivated in a more visual sense through an Area Under Curve (A
 
 ![](/blog/assets/batch_sizes_subplot.png){:width="850px"}
 
-Here, we have plotted the first dimensions our the matrices being passed through the model in each batch.
-This is to say, we are plotting the length that each review is padded to per batch.
-As the padded length of the reviews defines the dimensionality of the matrix multiplications occurring during the forward pass, it is a good litmus test for computational complexity.
-The larger the colored area, the more computation is required. Let's place these graphs on top of each other:
+Here, we have plotted the first dimensions of the matrices being passed through the model in each batch.
+This is to say, we are plotting the length that each review is padded to in each batch.
+As this value defines the dimensionality of the matrices being multiplied during the forward pass, it is a good litmus test for computational complexity.
+**The larger the colored area, the more computation is required**.
+Let's place these graphs on top of each other:
 
 ![](/blog/assets/batch_sizes_oneplot.png){:width="850px"}
 

@@ -114,7 +114,12 @@ Inspired by this, let's change the C code just a tiny bit:
 We've split the fibonacci function into two different functions. In combination, these functions do the exact same thing. However, individually they both return the result of just one function call unlike previously, where the function returned the sum of two function calls. We are still being naive and doing recursive functions. You could argue that we're being even more naive, we've added even more functions! Here are the benchmarks:  
 ![](/blog/assets/c_tailrecursion_times.png){:width="500px"}
 
-The program is instantaneous even without any optimizations. C out here impressing, I suppose. Better yet, this is also valid C++ and it runs just as fast when compiled with g++. So C++ also gets to be out here impressing. Is this starting to feel mindless? Hope so, because that's exactly what this is. 
+The program is instantaneous even without any optimizations.
+C out here impressing, I suppose.
+Better yet, this is also valid C++ and it runs just as fast when compiled with g++.
+So C++ also gets to be out here impressing.
+Is this starting to feel ridiculous?
+Hope so, because that's exactly what this is. 
 
 Perhaps I'm being needlessly critical. As mentioned, there is also a set of "non-legacy" benchmarks, whatever that means. At the very least there we know what hardware those tests were run on. Seeing that Fortran is in fact
 the greatest language for high-performance computing and these results are extremely scientific and replicable, we're going to see it shine in this one as well.
