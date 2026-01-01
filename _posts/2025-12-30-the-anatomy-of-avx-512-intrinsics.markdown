@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "The anatomy of AVX-512 intrinsics"
-date:   2025-12-30 00:00:00
+date:   2025-12-30 00:00:02
 categories:
 ---
 

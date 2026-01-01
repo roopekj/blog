@@ -216,9 +216,9 @@ if (eval < alpha - 485 - 281 * depth * depth)
     return qsearch<NonPV>(pos, ss, alpha, beta);
 {% endhighlight %}
 
+If the position is much worse than alpha (the best position we know we can get by playing another line), then we probably won't find anything better by digging deeper.
 Here, qsearch stands for quiescence search.
 We are immediately ending the search into this line, but doing so in a sensible manner.
-If the position is much worse than alpha (the best position we know we can get by playing another line), then we probably won't find anything better by digging deeper.
 Therefore, we simply dot our i's and cross our t's by running quiescence search, and then return the position's evaluation.
 This line has now **failed low**.
 
@@ -260,45 +260,85 @@ Alright, I've laid out the scenario where I claim that using a CPU could beat ou
 It's just words, though, and doesn't do any good unless I can prove it.
 Better yet, I should be able to put at least some real numbers behind my words.
 
-For this reason, I've benchmarked the process of calculating a GEneral Matrix Multiplication (GEMM) at different dimensionalities.
-This operation is exactly what happens when we pass a feature vector through a neural network's linear layer, so it should be an accurate proxy for machine learning inference.
-The x-axis shows the shared dimensionality of the three (square) matrices being used as operands.
-The matrices are all initialized with random 32-bit floating point numbers between 0 and 1, and the calculations at each size are run 1000 times to reduce randomness.
-Afterwards, we have taken the median (not mean) of the wall-clock times in seconds, and are plotting them on the Y-axis.
+For this reason, I've benchmarked the process of calculating a GEneral Matrix Multiplication (GEMM), ie. $C = \alpha AB + \beta C$, at different dimensionalities.
+The experiment is using $\alpha = \beta = 1$ and three square matrices with the same dimensionality.
+The implementations are simple C++ functions that get three pointers to arrays of data, and the timer is started immediately.
+As such, we're counting memory allocation, data transfer and freeing of the allocated memory for the GPU on each iteration.
+A GEMM is exactly what happens, when we have a matrix size of $\theta$ and
+* We have a batch size of $\theta$ datapoints.
+* Our feature vectors are $\theta$ values wide.
+* We're passing this data through a linear layer whose width is $\theta$.
+* The linear layer is using a bias.
+
+As such, this operation should be an accurate proxy for batched machine learning inference.
+
+The CPU implementation is using OpenBLAS (0.3.30) through the `cblas.h` header with an AMD Ryzen 9 7900X.
+For the GPU, I'm using cuBLAS kernels from CUDA toolkit (13.0.2) through the `cublas_v2.h` header with a RTX 4080 SUPER.
+Both of these implementations should be getting fairly close to the optimum performance for their respective hardware.
+
+Let's get to the results.
+The X-axis shows the shared dimensionality of the matrices being used as operands, ie. our $\theta$ from above.
+The matrices are all initialized with random 32-bit floating point numbers between 0 and 1, and the calculations at each size are run 100 times to reduce randomness.
+Afterwards, we take the median (not mean) of the wall-clock times in seconds, and plot them on the Y-axis.
 Blue line is the CPU and orange line is the GPU:
 
 {:refdef: style="text-align: center;"}
 ![](/blog/assets/cpu_vs_gpu_fma.png){:width="1000"}
 {: refdef}
 
-The CPU implementation is using OpenBLAS (0.3.30) through the `cblas.h` header with an AMD Ryzen 9 7900X.
-For the GPU, I'm using cuBLAS kernels from CUDA toolkit (13.0.2) through the `cublas_v2.h` header with a RTX 4080 SUPER.
-Both of these implementations should be getting fairly close to the optimum performance for their respective hardware.
-
 Looking at the data, there are a couple of peculiar jumps for the CPU.
 I'd assume these are the result of random noise due other system processes causing interrupts and like, as we are benchmarking an operation with a very short wall-clock time.
 All in all, a very clear trend for the CPU.
-On the other hand, the result for the GPU looks like a step function.
-Here's what I think is happening: For the smaller sizes, the GPU has enough CUDA cores to do any extra work in parallel with the old work.
-At some point, all the CUDA cores are saturated, so there needs to be an extra "clock cycle" where some of them do a second operation.
-I'm not fully certain that's what's happening here, but it seems likely.
-There is also a temporary increase in runtime when the matrix size is just above 400.
-The change seems consistent, so perhaps GEMMs for this size are just a tiny bit less optimized on my particular setup.
-Again, not completely sure, but the results are still very sensible.
+
+For the GPU, even the smallest operation takes around $0.0003$ seconds.
+The runtime remains stable for a long time in the start, which would suggest that this minimum runtime is imposed by the communication overhead and kernel launch latency, and not the data transfer.
+Curiously, if we look at the GPU data as a whole, it looks like a sequence of step functions with relatively linear increases between them.
+Here's my theory as to why this happens:
+
+The gradual increase in runtime between the steps is from data transfer overhead.
+Our computation is memory bound, so incrementally more data means an incrementally longer runtime.
+Then, there are occasional big steps.
+When a big step happens, it indicates that some computational complexity threshold has been reached.
+These steps seem to be split into two parts: steps before the size 1024x1024, and those after it.
+The fact that this split happens exactly at a power of 2 is a strong clue.
+
+First, the steps **after** this point happen rougly every 200 dimensions.
+I have to admit that the reason for this exact number is a mystery to me.
+The GPU operates in tiles with a set size, like 128x128, which would mean that the runtime should jump every time a multiple of this tile size is reached.
+This is because between these multiples, some tiles have padding in them which could be replaced with meaningful data *for free* as the matrix grows.
+Once all tiles are full, there has to be a new tile added to the computation, which means many additional calculations (most of which are pointless in the beginning).
+However, I don't think the cuBLAS kernel would be using a tile size of 200, and the distances are not exactly the same each time.
+If you think you know the answer, I'd love to hear your theory.
+
+The steps **before** this point seem more erratic.
+This might be because cuBLAS is switching between kernels that are optimized for different sizes.
+The same kernel might be used from 1024x1024 onwards, which would explain the relative stability afterwards.
+Again, not sure on this one, but the trend seems to be clear and fairly consistent.
 
 In any case, there are definitely matrix sizes where I'd take the CPU on any day of the week.
+In fact, any matrix size below 850 or so seems to be a clear win for the CPU.
+This amounts to roughly $2 \cdot 850^3 = 1.3$ billion floating point operations.
+
 Of course, when the number of operations grows past a certain point, the GPU starts to slowly mop the floor with the CPU.
-If we kept going for a while, the line for the GPU would start looking like a horizontal line compared to the CPU.
-Furthermore, if we dropped the precision down to 16-bit, 8-bit or especially 4-bit floating point values, the GPU would start utilizing tensor cores, after which it should perform much better.
+If we kept going for a while, the line for the GPU would start to look horizontal compared to the CPU.
+Furthermore, if we dropped the precision down to 16-bit, 8-bit or especially 4-bit floating point values, the GPU would start utilizing tensor cores and we would be transfering much less data.
+This should make the GPU perform better.
 All of this is to be expected, though, as this would be the CPU fighting on the GPU's home field -  a place that it was never really designed for.
 The opposite would be true if we switched to integers, so these speculations are not meaningful on their own.
+
+Some may be wondering how much the results would change if ignored the GPU's operations related to memory allocations and data transfer.
+In the below plot, all memory on the GPU is pre-allocated, data is pre-transferred, and no results are brought back to RAM while the timer is running:
+
+{:refdef: style="text-align: center;"}
+![](/blog/assets/cpu_vs_gpu_fma_ignore_memalloc.png){:width="1000"}
+{: refdef}
 
 Do with this data as you will, as long as you don't take it as gospel. 
 I'm contempt in claiming that I've proven my point.
 
 # Closing thoughts
 
-This example of a two-players game being solved with minimax is far from the only instance where GPUs begin to falter.
+This example of a two-player game being solved with minimax is far from the only instance where GPUs begin to falter.
 Any scenario where small batches of data must be passed through a small model sequentially will arrive at the same dilemma.
 Like any performance consideration, there is no textbook from which you could just look up the solution to your specific problem.
 You have to try many options, and then choose the one that worked the best.

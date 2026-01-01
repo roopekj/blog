@@ -1,189 +1,36 @@
 ---
 layout: post
 title:  "Birdbrain batching and tips on never using it"
-date:   2025-06-08 00:00:00
+date:   2025-06-08 00:00:01
 categories:
 ---
 
 $$\require{amsmath}$$
 
-Batching is the process of passing multiple datapoints through a machine learning model at once.
-It is nearly always used in the context of training these models, where the batches themselves are often referred to as *mini-batches*.
-In this context, it is crucial for both computational efficiency and convergence of the training process.
-However, the former motivation also applies to inference, meaning that batching is also at the core of using any machine learning model after training.
+This post is a follow-up to [How batching arises naturally from the fundamental design of neural networks](./batching-with-statically-sized-feature-vectors).
+If you're unfamiliar with neural networks or the concept of batching, I would recommend reading that post first.
 
-This post is about batching in scenarios where the feature vector lengths differ, and how it can be done in a way that is either **clever**, **industrious** or **birdbrained**.
-For the uninitiated, there are also short introductions to the prerequisites.
-Each subchapter has a title, whose cursive segment signifies its subject.
-If the subject matter seems obvious, you can go ahead and skip forward. 
+When you're dealing with a traditional neural network, you will have statically sized feature vectors and parallelism will be straightforward.
+This post is about batching when the inputs to the model are different lengths.
+One pertinent scenario where this typically occurs is natural language.
+We will be using a language model consisting of a decoder-only transformer as an example.
+Here, the differing lengths of the tokenized inputs make batching non-trivial.
+Numerous other models face this exact same challenge in their respective modality, and I think this challenge can generally be solved in a way that is either **clever**, **industrious** or **birdbrained**.
 
-# Laying the groundwork *(perceptrons)*
+Let's go step by step in trying to adapt the straightforward method of traditional neural networks into a transformer that is analyzing the sentiments of movie reviews.
 
-The individual units of "intelligence" used in "artificially intelligent" systems today did not come out of nowhere, but instead had an evolutionary process.
-First came the McCulloch-Pitts neurons in the 40s, then the perceptrons in the 50s, and finally the neurons that we know today from MultiLayer Perceptrons (MLP) in the 80s.
-Let's skip the McCulloch-Pitts neurons as they are not terribly relevant, and begin with the perceptrons.
+# Getting our token sequences
+Let's start with a quick detour into probability theory.
+We will use this information in order to get some realistic data for our experiments.
 
-Let's define $i$ as the dimensionality of the input vector ie. the number of features.
-Mentally you can replace this with anything you'd like.
-For the sake of an example, I'm going to use the **price**, **gas mileage** and **production year** of some car.
-In all simplicity, a perceptron consists of a weight vector $\boldsymbol{w} \in \mathbb{R}^{i}$, and a bias $b$, which is just a scalar value.
-Then, given a feature vector $\boldsymbol{x}$, we take the dot product $\boldsymbol{x} \cdot \boldsymbol{w}$ and sum it with the bias $b$.
-So, with the (arbitrary) weights $\boldsymbol{w} = [-2, 1522, 8]$ and bias term of $10$, our feature vector $\boldsymbol{x} = [10000 \text{ (€)}, 10 \text{ (l/100km)}, 2000]$ produces the following result:
-
-$$\boldsymbol{x} \cdot \boldsymbol{w} + b = [10000, 10, 2000] \cdot [-2, 1522, 8] + 10 = 11230$$
-
-The values used could just as well be floating point numbers. I've used whole numbers just for the sake of simplicity.
-
-These two operations are then wrapped in a function that outputs 1 if its input is greater than zero, and 0 otherwise.
-The fancy name for this is the *Heaviside step function*.
-Here, the perceptron would therefore return 1.
-Again, this could mean that this car is worth purchasing, or whatever you'd like.
-This is all a perceptron is; take in a vector of features, and map it into a scalar that signifies some interpretation of the features.
-This simplicity is both a blessing and a curse - it means that we can [guarantee convergence](https://en.wikipedia.org/wiki/Perceptron#Convergence_of_one_perceptron_on_a_linearly_separable_dataset), but also that we cannot solve any system where the data is not linearly separable.
-Even modeling a simple XOR function is not possible for this perceptron.
-
-# Increasing the units of intelligence *(multilayer perceptrons)*
-Let's increase the number of these perceptrons, say, by two. So now we have three perceptrons, all of which take in the same vector and map it to a scalar value using their respective weights and biases. Each perceptron is trying to interpret some different thing. Let's say they're interpreting whether the
-car is worth buying for three different people, all with different desires and requirements. Passing a feature vector through the three perceptrons could be done separately for all of them, simply by repeating
-the aforementioned process of taking the dot-products and summing the results with the biases.
-
-However, we can also stack the (columnar) weight vectors on top of each other, creating a matrix, and multiply its transpose with the feature vector.
-After also combining the biases into a column vector and summing it with the output of the vector-matrix product, we have calculated the results of all three perceptrons, prior to the Heaviside step function.
-
-More concretely, with the (arbitrarily chosen) weights and biases
-
-$$
-\boldsymbol{W} =
-  \begin{bmatrix}
-    -2 & 1522 & 8 \\
-    -3 & 111 & 23 \\
-    3 & -3263 & 0
-  \end{bmatrix}
-
-\boldsymbol{b} = [10, 0, -44]
-$$
-
-the same feature vector passes through as follows:
-
-$$
-\boldsymbol{x} \boldsymbol{W}^T + b = [10000, 10, 2000]
-  \begin{bmatrix}
-    -2 & 1522 & 8 \\
-    -3 & 111 & 23 \\
-    3 & -3263 & 0
-  \end{bmatrix}^T
-+ [10, 0, -44] = [11230, 17110, -2674]
-$$
-
-If we were to take the Heaviside step function, we would see that the first person should buy the car (as we already knew) along with the second one, but the third person should not. But let's forget about the Heaviside step function for now, and just look at the values produced.
-
-We have mapped our feature vector into an output vector containing three unique interpretations of the features, calculated using three perceptrons.
-As we have omitted the Heaviside step function, let's change the name of our units of intelligence from perceptrons into *neurons*. 
-What we have produced is perhaps the simplest, and without question the most foundational component in modern artificial neural networks: the linear layer.
-These are otherwise known as Fully Connected (FC) layers, dense layers, affine layers, Feed-Forward (FF) layers or seemingly any other word salad you could to come up with.
-Naming conventions in machine learning follow the long, traditional engineering approach of *None*. 
-
-These linear layers can be chained together with a non-linear function of your choice between them to already produce some fairly powerful decision makers.
-Combining at least two of these layers is what is referred to as a MLP or Feed Forward Network (FFN) - the original meaning of the term *neural network*.
-Although the latter has evolved to mean many different types of architectures, the MLP is still present within effectively all of them, including the transformer architecture used universally by large language models:
-{:refdef: style="text-align: center;"}
-![](/blog/assets/transformer_ff_layers.png){:width="400px"}
-{: refdef}
-
-# Bumping up the dimensionality *(batch processing of constant sized feature vectors)*
-
-Now, let's say we have four feature vectors we want to pass through the layer.
-Keeping up with our previous analogy, let's say we have four different cars whose suitability we want to evaluate for the three people from before.
-If we process each vector independently, this means roughly four times the work from before: A cycle of loading the feature vector into VRAM, performing the two computations, and then writing the resulting vector back into RAM.
-This is not the best way to do things, as we can do something very similar to how we processed multiple perceptrons at once.
-
-Let's create a feature matrix, which is simply the concatenation of the feature vectors.
-The bias vector acts a bit odd here, as it is added row-wise to the matrix.
-Linear algebra libraries typically express this through a process known as *broadcasting*.
-However, in terms of mathematical notation, this is the same as if we were to stack copies of the row-vector on top of each other, forming a matrix where the number of rows equals the number of datapoints, and then performed normal element-wise addition.
-Therefore, let's define it as such here.
-
-With the feature vectors (cars) of $\boldsymbol{x}_1 = [10000, 10, 2000]$, $\boldsymbol{x}_2 = [5500, 15, 1988]$, $\boldsymbol{x}_3 = [78000, 32, 2021]$ and $\boldsymbol{x}_4 = [100000, 25, 1999]$ we have this feature matrix:
-
-$$
-  \begin{bmatrix}
-    10000 & 10 & 2000 \\
-    5500 & 15 & 1988 \\
-    78000 & 32 & 2021 \\
-    100000 & 25 & 1999 \\
-  \end{bmatrix}
-$$
-
-Passing it through the linear layer from before, made up of three neurons...
-
-$$
-\boldsymbol{X} \boldsymbol{W}^T + \boldsymbol{B} = \\
-
-  \begin{bmatrix}
-    10000 & 10 & 2000 \\
-    5500 & 15 & 1988 \\
-    78000 & 32 & 2021 \\
-    100000 & 25 & 1999 \\
-  \end{bmatrix}
-  \begin{bmatrix}
-    -2 & 1522 & 8 \\
-    -3 & 111 & 23 \\
-    3 & -3263 & 0
-  \end{bmatrix}^T
-+ 
-  \begin{bmatrix}
-    10 & 0 & -44 \\
-    10 & 0 & -44 \\
-    10 & 0 & -44 \\
-    10 & 0 & -44
-  \end{bmatrix} = \\
-
-  \begin{bmatrix}
-    11230 & 17110 & -2674 \\
-    27744 & 30889 & -32489 \\
-    -91118 & -183965 & 129540 \\
-    -145948 & -251248 & 218381 \\
-  \end{bmatrix}
-$$
-
-You'll notice that the first row is in fact the same vector you'd get for passing the first feature vector through the linear layer alone.
-This notion is true for the other rows as well.
-We have not altered the results, we have just calculated them all at once.
-Continuing with our logic, the first and second people should buy one of the first two cars, and the third person should buy one of the later two cars.
-
-In total, we have passed **four** different feature vectors through a network of **three** neurons in **one** matrix-matrix multiplication and **one** matrix-matrix addition.
-In the naive approach we would be performing 12 operations using seven different vectors.
-What does this stark decrease in the number of individual operations actually do for us in practice, if anything?
-
-# A quick peek under the hood *(parallelized matrix-matrix multiplication)*
-
-I wrote a [post](./mulling-over-matrix-multiplications-in-cuda) about matrix multiplications within CUDA.
-I would recommend reading it, as it is quite relevant, but wouldn't necessarily consider it to be a prerequisite as it is also needlessly in-depth. 
-
-The bare minimum to understand for the purposes of this post is this: modern GPUs are able to calculate large matrix-matrix products extremely efficiently, achieving exceptional levels of parallelism.
-If we are able to turn our model from many small dot products into a (large) matrix-matrix multiplication, we are able to tap into this efficiency.
-
-In an ideal world, we are able to process many datapoints in a way where processing all of them is roughly as fast as processing just one of them, given that you have the required cores and memory bandwidth available.
-In our example, evaluating **four feature vectors for three perceptrons** is just as fast as evaluating **one feature vector for one perceptron**. 
-This is the magic of parallelized matrix multiplications.
-
-## The clever, the industrious and the birdbrained
-This is where we arrive at the real subject of this post.
-
-When the feature vectors are statically sized (details of car listings, sensor readings, color intensities of pixels), parallelism is straightforward and obvious.
-However, things get interesting when the feature vector sizes differ.
-One pertinent scenario where this typically occurs is in natural language.
-*From this point onwards, we're going to focus on movie reviews as an example, but the ideas apply generally to all language models and document types.*
-
-# Getting our feature vectors
-A countless number of randomly occurring things in this world produce the exponential distribution. More specifically, any homogeneous Poisson process creates inter-arrival times that form the exponential distribution. Breaking that statement down,
-a homogeneous Poisson process is simply a random process where in a given interval of time, the probability of an event occurring is proportional to the length of the interval and independent of other intervals.
+A countless number of randomly occurring things in this world produce the exponential distribution.
+More specifically, any homogeneous Poisson process creates inter-arrival times that form the exponential distribution.
+Breaking that statement down, a homogeneous Poisson process is simply a random process where in a given interval of time, the probability of an event occurring is proportional to the length of the interval and independent of other intervals.
 This is a continuous time version of the (discrete) Bernoulli process, where each individual experiment has a (constant) probability of success that is independent of all previous and later experiments; think of a coin flip.
 
 In the Bernoulli, we have discrete *events* that have a *success rate*. 
 In the Poisson, we have continuous *time intervals* that have an *arrival rate*.
 A Bernoulli process generates a geometric distribution, whereas a Poisson process generates an exponential distribution.
-
 
 As an everyday example, let's say you sit by a highway and spot red cars as they pass by.
 The probability of seeing at least one red car in a time interval of 5 minutes is, say, 30%.
@@ -194,15 +41,19 @@ The (discrete) number of non-red cars between each spotting of a red car would p
 
 You can probably come up with a dozen ways this could be used off the top of your head: customer service request durations, equipment usage times between malfunctions, radioactive decay...
 If we parameterize the distribution to match our historical data, we can evaluate likelihoods for future events with some degree of confidence.
-Here, let's use an exponential distribution to model the lengths of our movie reviews.
+Here, we can use an exponential distribution to model the lengths of our movie reviews.
 You could just as well (and perhaps more sensibly) use a geometric distribution.
 In any case, we sample 1000 values from an exponential distribution and discretize them to signify movie review lengths: 
 
 ![](/blog/assets/review_lengths.png){:width="850px"}
 
-For practical purposes, I've turned all the zeroes we sampled into ones. The longest review we got was just about 400 words long, while most of them landed within 1-10 words.
+For practical purposes, I've turned all the zeroes we sampled into ones.
+The longest review we got was just about 400 words long, while most of them landed within 1-10 words.
 The rest of the lengths are scattered around 10-200 in decreasing fashion, with a few popping up between 200 and 400 as well.
-Makes sense, most people write short reviews, some put in more effort. A handful decide to write a novel.
+Makes sense, most people write short reviews, some put in more effort.
+A handful decide to write a novel.
+
+We will be generating the words of each review randomly up to its respective length.
 
 # Optimal brain damage
 
@@ -267,7 +118,7 @@ class WhateverModel:
 The model is missing all of the bells and whistles of modern large language models. No grouped query attention, no GeLU (or any other nonlinearity), no residual connections.
 
 This is by design, as we are not trying to build an intelligent model, but a model that embodies the computational burdens of an intelligent model without all the distractions.
-We have added one component where the tokens are interconnected (the self-attention) and one where they are not (the linear layer), and that's it.
+We have added one component where the tokens are interconnected (*self-attention*) and one where they are not (*linear layer*), and that's it.
 Consequently, our forward pass is effectively just 7 matrix multiplications, performed for each of our *blocks*.
 Goes to show how simple this stuff gets when you remove the cruft.
 
@@ -318,39 +169,60 @@ Here's the forward pass:
 In terms of vocabulary, let's define that our tokenizer does not map subwords, but only knows whole words.
 This is just so we don't have to get bogged down by the token/word distinction.
 
-# Passing a feature vector through the model
+# How a single review gets analyzed
 
-When we have a review that is made up of $100$ words.
-These words are first mapped into $100$ tokens based on our vocabulary.
+When we have a review that is made up of $100$ words, these words are first mapped into $100$ tokens indices based on our vocabulary.
 Then, each of these tokens is given an embedding vector simply by looking it up from the embedding matrix.
 Notice that our model uses an embedding dimension (or hidden dimension) of $4096$.
 As such, the input to the rest of the model is now of size $\mathbb{R}^{100 \times 4096}$.
+If you're unsure about how this matrix makes it through the model, it will be explained in the following paragraph.
+If you don't need convincing, feel free to skip it.
 
-We can pass this through the linear layers just fine, as they just perform a matrix multiplication with the transpose of a matrix whose shape is $\mathbb{R}^{4096 \times 4096}$.
-We will receive a new $\mathbb{R}^{100 \times 4096}$ matrix as a result, keeping the dimensionality of our matrix unchanged.
-The self-attention also starts off with three linear layers, which we know to not alter the dimensionality.
-This produces three different matrices of identical dimensions.
-The first is multiplied with the second's transpose, the result of which is then multiplied with the third.
-As these three matrices are of the same dimensions and we don't care about their contents right now, let's call them all $\boldsymbol{X}$.
-For any matrix $\boldsymbol{X}$ of arbitrary dimensions, $\boldsymbol{X X^T X}$ will always produce a matrix of identical dimensions to $\boldsymbol{X}$.
-So our single review passes through a full block no problem, producing a matrix of identical dimensions.
-The final linear layer has two columns, so it will output a 2-length vector, from which we then pick out our label.
+The self-attention starts off with three linear layers.
+These linear layers each multiply our matrix with another matrix whose shape is $\mathbb{R}^{4096 \times 4096}$.
+No problems there - we will receive a new $\mathbb{R}^{100 \times 4096}$ matrix as a result, keeping the dimensionality unchanged.
+We now have three new matrices of identical dimensions to the original one.
+Next, the first of these is multiplied with the second's transpose, and the result is then multiplied with the third.
+To quickly convince ourselves that this is fine, we can think of it this way:
+These three matrices are of the same dimensions and we don't care about their contents right now, so let's call them all $\boldsymbol{X}$.
+It is trivially provable that for any matrix $\boldsymbol{X}$ of arbitrary dimensions, $\boldsymbol{X X^T X}$ will always produce a matrix of identical dimensions to $\boldsymbol{X}$.
+Therefore, we are once again left with a matrix whose dimensionality is identical to our starting matrix.
+Then, there is a linear layer whose weight matrix is identically sized to our those of our first three linear layers.
+We now know that these do not modify the dimensionality of our matrix, so we exit the block with an output whose size is identical to the input.
+The operations run within the different blocks are identical and the blocks themselves are directly connected to one another, so the matrix passes through all blocks without problems, producing a matrix of identical dimensions every time.
+The final linear layer has the same amount of rows as the prior ones but only two columns, so it will output a matrix of size $\mathbb{R}^{100 \times 2}$.
+We then pick our label from the two values in the first row, which is similar to how some notable architectures like BERT are utilized.
 
-Therefore, the naive way to process our 1000 reviews is to just pass them through the model individually.
+The naive way to process our 1000 reviews is to just pass them through the model individually.
 In this case, we pass through a matrix of shape $\mathbb{R}^{\text{number of words in review} \times 4096}$ for each review, and receive a binary output.
-However, this does not utilize the aforementioned GPU parallelism all that well.
-A better idea would be to process the reviews "all at once". Is this possible?
+However, this doesn't sound like it would fully utilize the parallelism of what we're doing here.
+After all, the reviews can each pass through the model independently of one another, so why are we processing them sequentially and not *all at once*?
 
 # Testing the waters
-Let's try to plug in a second review. Let's say that it is 90 words long. Well, through an identical starting process it turns into a $\mathbb{R}^{90 \times 4096}$ matrix.
-However, if we were to pass these two reviews through the first linear layer of the first self-attention layer, what would we be using as the input?
-As is emphasized in my [post on CUDA programming](./mulling-over-matrix-multiplications-in-CUDA), the speed of our calculations originates from collections of threads performing the same instructions in parallel.
-We need to be able to express our data as a tensor to be able to reasonably create such instructions and reuse them throughout the differently sized batches.
-Sadly, the dimensions of our matrices do not match, so we cannot concatenate them directly to form a tensor.
+Let's try to plug in a second review.
+Let's say that it is 90 words long.
+Well, through an identical starting process it turns into a $\mathbb{R}^{90 \times 4096}$ matrix.
+Now we have a $\mathbb{R}^{100 \times 4096}$ and a $\mathbb{R}^{90 \times 4096}$ matrix on our hands.
+When we pass these two reviews through the first linear layer of the first self-attention layer, what will we be using as the input?
+We're trying to pass them through at the same time but independently of one another.
+As is emphasized in my [post on CUDA programming](./mulling-over-matrix-multiplications-in-CUDA), the speed of our calculations originates from collections of threads performing the same instructions in parallel on different data.
+If we simply turn this into a $\mathbb{R}^{190 \times 4096}$ matrix, we would still need to communicate somehow where one review ends and the second one starts.
+What about when we need to apply attention?
+The tokens of the first review can't be allowed to "attend to" the tokens of the second one and vice versa.
+All of these types of conciderations have led to a pseudo-standardization, where data like this should be expressed as a tensor of type $\mathbb{R}^{\text{batch size} \times \text{number of tokens} \times \text{hidden dimension}}$.
+You can see this in how the library we're using for matrix multiplications, PyTorch, [interprets the sizes of our operands](https://docs.pytorch.org/docs/stable/generated/torch.matmul.html):
 
-This is where padding comes in. We define a special token which acts as a "padding token", and add 10 of those at the end of our shorter review.
+`If both arguments are at least 1-dimensional and at least one argument is N-dimensional (where N > 2), then a batched matrix multiply is returned.`
+
+So we activate batched matrix multiplication by adding a third dimension.
+This way, it's possible to create reasonable GPU kernels that can then be reused generally throughout differently sized operands.
+We need to create a 3D tensor, but the dimensions of our 2D matrices do not match, so we cannot concatenate them directly.
+What to do?
+
+This is where padding comes in. We define a special token which acts as a *padding token*, and add 10 of those at the end of our shorter review.
 Now, we have two $\mathbb{R}^{100 \times 4096}$ matrices that can be concatenated along the third axis, producing a $\mathbb{R}^{2 \times 100 \times 4096}$ tensor which is then passed through the model.
-In components where the tokens are intra-connected, namely the self-attention, we can set the attention values between all real tokens and these padding tokens to zero.
+We are now analyzing both reviews at the same time, but does the padding affect our result in the shorter review?
+Well, in components where the tokens are intra-connected, namely the self-attention, we can set the attention values between all real tokens and these padding tokens to zero.
 In components where the tokens are not intra-connected, the padding tokens do not interact with our real tokens.
 Therefore, we avoid any modifications to our result, no matter how much padding we add. Fantastic.
 
@@ -358,8 +230,12 @@ So what we can do with our 1000 movie reviews is to find the longest review, pad
 In theory, yes, but this is where reality kicks in.
 With 1000 reviews and a maximum review length of 400 tokens, how big is our input matrix?
 Well, it's $\mathbb{R}^{1000 \times 400 \times 4096}$, which means our **input matrix alone** would take $1000\cdot400\cdot4096\cdot16\cdot0.5\cdot10^{\ -9} = 13.1072$ GiB of VRAM, assuming 16-bit floating point values and zero overhead.
-This is before any of the matrix multiplications have been performed and have had their results stored in memory, only to be recalled in the future in order to produce a new matrix that uses up yet another 13GiB. What happens if our hidden dimension increases? Or we get more data?
-Or we get a really long review? No matter the depth of your pockets, there is going to be a limit. This is a non-starter.
+This is before any of the matrix multiplications have been performed and have had their results stored in memory, only to be recalled in the future in order to produce a new matrix that uses up yet another 13GiB.
+What happens if we increase our hidden dimension?
+Or we get more data?
+Or we get a really long review?
+No matter the depth of your pockets, there is going to be a limit.
+This is a non-starter.
 
 So we have to sort of *reduce* the batching. In essence, we see how many reviews our hardware can process at a time, then take that many reviews from our $\mathbb{R}^{1000 \times 400 \times 4096}$ matrix, load them into VRAM and pass them through the model.
 Rinse and repeat until we're done. Here's the implementation:
@@ -393,30 +269,41 @@ For my 16 GiB of VRAM this limit turns out to be eight reviews.
 So, we take eight reviews at a time from our large tensor, forming a new tensor of shape $\mathbb{R}^{8 \times 400 \times 4096}$, and pass it through the model.
 
 This works.
-It stays within the memory limits and oh boy does it thrash around the GPU, getting it to a constant 100% utilization.
+Our memory usage does not move at all during execution and oh man does this thrash around the GPU, getting it to a constant 100% utilization.
 This is exactly what we want, so all signs point to us having done a great job utilizing our resources.
 
-We have succesfully built the **birdbrained** approach.
+We have succesfully built the birdbrained approach.
 
-# Bird's eye view of the problem
+# Taking a step back
 
 Don't get me wrong, I don't mean to knock on anyone for thinking that the previous approach is a serviceable idea. I've built this kind of a system myself, and seen a few written by others since.
-However, in any task that is performance critical or is going to be run often (consuming electricity), you really don't want to do this.
+However, in any task that is performance critical or is going to be run often, you really don't want to do this.
 The reason becomes obvious when we look at the very first batch:
 
 {:refdef: style="text-align: center;"}
 ![](/blog/assets/batch_heatmap.png){:width="850px"}
 {: refdef}
 
-This "heatmap" shows the first batch of 8 reviews. The colors go up to 60000 or so, as that is the largest vocabulary index present in the batch.
-The entire purple section is just padding.
-When we pass this batch though the model, the first step is a linear layer with a matrix of size $\mathbb{R}^{4096 \times 4096}$.
-Each of the eight rows in the above image will be a $\mathbb{R}^{409 \times 4096}$ matrix that gets multiplied with the linear layer's matrix.
-All the values in the resulting $\mathbb{R}^{409 \times 4096}$ matrix will be calculated, but for the first review, only **24** of the rows are **ever** used.
-For the 7th review, all but **9** of the resulting 409 rows will **never** be used.
+Here, we have a *heatmap* that shows the first batch of 8 reviews.
+Every row is a document, and all documents have now been padded to 409 tokens as part of the batching.
+Here, each color represents a token at a specific point in a review.
+The colors go up to 60000 or so, as that is the largest vocabulary index present in this batch.
+Now is a good time to remind ourselves - the tokens that make up a review were randomly generated.
+This means that any time the same color appears twice, that means there is a duplicate token.
+One can't help but notice the massive purple section at the end of every single row.
+That's all just padding.
 
-This process gets repeated over and over, with us either discarding or masking out all of the values that get calculated as a result of the padding tokens.
-Thinking back to the processing within the GPU, there is a limited amount raw computations we can do during any given timeframe.
+As was discussed earlier, the first step of the model's forward pass is a multiplication with a matrix of size $\mathbb{R}^{4096 \times 4096}$.
+Each of the eight rows in the above image will be a $\mathbb{R}^{409 \times 4096}$ matrix when entering this operation.
+All the values in the resulting $\mathbb{R}^{409 \times 4096}$ matrix will be calculated.
+For the first review, only **24** of the rows are **ever** used.
+For the 7th review, only **9** of the rows are **ever** used.
+The rest of the tokens are just padding, after all, and will be ignored.
+We could've passed these through as $\mathbb{R}^{24 \times 4096}$ and $\mathbb{R}^{9 \times 4096}$ matrices, but have decided to turn them into these mammoths for the sake of batching.
+This repeats for all intermediate steps during the forward pass, as the reviews make their way to the last linear layer with their dimensionalities intact.
+
+This process gets repeated over and over for all batches, with us either discarding or masking out all of the values that get calculated for the padding tokens.
+Thinking for a moment about how matrix multiplications happen inside a GPU, there is a limited amount raw computations that can be performed in any given timeframe.
 When we process a batch like this, we are saturating that capacity with garbage calculations whose results will get thrown out as soon as they finish.
 Here is the heatmap for the entire dataset:
 
@@ -428,10 +315,10 @@ We can see that this is not an isolated indicent.
 It almost doesn't even matter where you slice your batch of 8 reviews, you're mostly just processing garbage.
 There's exactly one batch where there is any sort of justification for this level of padding, and that's the one with the longest review.
 
-# Working hard
+# Getting industrious
 
 Here's an idea that probably comes to mind: Let's first choose our 8 reviews and place them in a batch, and then pad according to the maximum length in that batch.
-Our implementation only changes a tiny bit as we shift the padding two lines downwards, applying padding only after forming the batch:
+Our implementation only changes a tiny bit as we shift the padding down by two lines, applying it only after creating the batch:
 
 {% highlight python %}
 def batch(model: WhateverModel, documents: list[list[int]]):
@@ -455,7 +342,7 @@ The padding is now done inside a loop instead of all at once, but that process i
 {: refdef}
 
 Now we're cooking. The massive wave of purple at the end of each review is gone, and we are only processing what we need to process.
-Yeah, we're still calculating *some* garbage, but that's just the price you pay for batch processing.
+Sure, we're still calculating *some* garbage, but that's just the price you pay for batch processing.
 After all, we can't do any less padding, as we have padded to the length of the shortest review in the batch.
 The only way we could do better would be to reduce the length of the shortest review in the batch.
 
@@ -479,7 +366,7 @@ def batch(model: WhateverModel, documents: list[list[int]]):
 
 It doesn't get any simpler than this.
 
-We "group" reviews based on their length, and then place reviews from the same "group" to the same batches.
+We *group* reviews based on their length, and then place reviews from the same *group* to the same batches.
 After all, the downside in the previous approach was that the batch contained reviews of differing lengths due to chance.
 Don't count on your luck to segment the reviews into perfect batches, it's not going to happen.
 
@@ -511,7 +398,8 @@ This can also be motivated in a more visual sense through an Area Under Curve (A
 
 ![](/blog/assets/batch_sizes_subplot.png){:width="850px"}
 
-Here, we have plotted the matrix dimensions (ie. padded length of reviews, or number of rows) for each review in our batches.
+Here, we have plotted the first dimensions our the matrices being passed through the model in each batch.
+This is to say, we are plotting the length that each review is padded to per batch.
 As the padded length of the reviews defines the dimensionality of the matrix multiplications occurring during the forward pass, it is a good litmus test for computational complexity.
 The larger the colored area, the more computation is required. Let's place these graphs on top of each other:
 
@@ -523,8 +411,8 @@ It becomes clear just how much better we end up doing by changing two lines of c
 
 There are also further optimizations that could be performed.
 As mentioned, when using the birdbrained batching approach, the maximum batch size possible with my GPU is 8.
-This is also true for the later two, as we still need to process the batch that contains the longest review *at some point*.
-Then we will need to allocate space for the full $\mathbb{R}^{\text{batch size} \times 409 \times 4096}$ matrix anyways.
+This is also true for the later two, as we still need to process the batch that contains the longest review sooner or later.
+At that point, we will need to allocate memory for the full $\mathbb{R}^{\text{batch size} \times 409 \times 4096}$ matrix anyways.
 And yes, with a constant batch size there's no getting away from this fact.
 However, if we allow the batch size to change dynamically, we can actually squeeze out just a bit more perforamance yet.
 
@@ -571,11 +459,11 @@ def batch(model: WhateverModel, documents: list[list[int]]):
 {% endhighlight %}
 
 # Wrapping up
-I'm hesitant to call batching a necessary evil, as there really is nothing nefarious about it, as long as you do it right.
-And this is not to say that I think it's trivial, far from it.
+I'm hesitant to call batching a necessary evil, as there really is nothing nefarious about it.
+This is not to say that I think it's trivial, far from it.
 There's always going to be trade-offs and it's never going to be quite perfect as long as your data stream is not 100% consistent and predictable.
-It's part of every ML model training cycle and effectively every deployment of said models, so it's important to figure out.
-But the most important thing is that if you are batching feature vectors that cannot be concatenated directly into a tensor, don't just pad them naively to make the problem go away.
+It's part of every ML model training cycle and effectively every deployment of said models, so it's important to figure it out.
+But the most important thing is that if you are batching data that can't be concatenated directly into a tensor, don't just pad them naively to make the problem go away.
 Think about it for just a bit, or you'll end up doing birdbrain batching.
 
 The code for these experiments can be found [in this Github repository](https://github.com/roopekj/smart-batching).

@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Making CPUs adequate at linear algebra"
-date:   2025-12-30 00:00:00
+date:   2025-12-30 00:00:01
 categories:
 ---
 

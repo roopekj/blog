@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Mulling over matrix multiplications in CUDA"
-date:   2025-06-08 00:00:00
+date:   2025-06-08 00:00:02
 categories:
 ---
 
