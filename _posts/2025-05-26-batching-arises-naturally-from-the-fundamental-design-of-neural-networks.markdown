@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "How batching arises naturally from the fundamental design of neural networks"
+title:  "Batching arises naturally from the fundamental design of neural networks"
 date:   2025-06-08 00:00:00
 categories:
 ---

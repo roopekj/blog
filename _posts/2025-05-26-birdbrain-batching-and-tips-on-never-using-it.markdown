@@ -7,7 +7,7 @@ categories:
 
 $$\require{amsmath}$$
 
-This post is a follow-up to [How batching arises naturally from the fundamental design of neural networks](./batching-with-statically-sized-feature-vectors).
+This post is a follow-up to [Batching arises naturally from the fundamental design of neural networks](./batching-arises-naturally-from-the-fundamental-design-of-neural-networks).
 If you're unfamiliar with neural networks or the concept of batching, I would recommend reading that post first.
 
 When you're dealing with a traditional neural network, you will have statically sized feature vectors and parallelism will be straightforward.
